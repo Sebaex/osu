@@ -78,7 +78,7 @@ namespace osu.Game.Rulesets.Mania.Mods
                         });
                         continue;
                     }
-                    
+
                     newColumnObjects.Add(new Note
                     {
                         Column = column.Key,
