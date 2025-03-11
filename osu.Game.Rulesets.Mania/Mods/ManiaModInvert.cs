@@ -4,10 +4,12 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using osu.Framework.Bindables;
 using osu.Framework.Graphics.Sprites;
 using osu.Framework.Localisation;
 using osu.Game.Audio;
 using osu.Game.Beatmaps;
+using osu.Game.Configuration;
 using osu.Game.Rulesets.Mania.Beatmaps;
 using osu.Game.Rulesets.Mania.Objects;
 using osu.Game.Rulesets.Mods;
@@ -28,6 +30,15 @@ namespace osu.Game.Rulesets.Mania.Mods
         public override ModType Type => ModType.Conversion;
 
         public override Type[] IncompatibleMods => new[] { typeof(ManiaModHoldOff) };
+
+        [SettingSource("Hold Gap Size", "The distance of the gap between holds denoted by a 1/n snap.")]
+        public BindableNumber<int> HoldGapSize { get; } = new BindableInt(4)
+        {
+            Precision = 2,
+            MinValue = 2,
+            MaxValue = 16,
+            Default = 4
+        };
 
         public void ApplyToBeatmap(IBeatmap beatmap)
         {
@@ -51,15 +62,28 @@ namespace osu.Game.Rulesets.Mania.Mods
                     // Beat length at the end of the hold note.
                     double beatLength = beatmap.ControlPointInfo.TimingPointAt(locations[i + 1].startTime).BeatLength;
 
-                    // Decrease the duration by at most a 1/4 beat to ensure there's no instantaneous notes.
-                    duration = Math.Max(duration / 2, duration - beatLength / 4);
+                    // Avoid creating holds shorter than some selected gap size values, replacing them with a note (e.g 1/8 holds with 1/4 gap size set).
+                    // The -1 to the duration is due to slight differences in distances between notes and/or holds, this to avoid unwanted holds with the chosen gap size.
+                    if (duration - 1 > (beatLength / HoldGapSize.Value))
+                    {
+                        // Decrease the duration according to the desired gap size.
+                        duration = Math.Max(duration / 2, duration - beatLength / HoldGapSize.Value);
 
-                    newColumnObjects.Add(new HoldNote
+                        newColumnObjects.Add(new HoldNote
+                        {
+                            Column = column.Key,
+                            StartTime = locations[i].startTime,
+                            Duration = duration,
+                            NodeSamples = new List<IList<HitSampleInfo>> { locations[i].samples, Array.Empty<HitSampleInfo>() }
+                        });
+                        continue;
+                    }
+                    newColumnObjects.Add(new Note
                     {
                         Column = column.Key,
                         StartTime = locations[i].startTime,
-                        Duration = duration,
-                        NodeSamples = new List<IList<HitSampleInfo>> { locations[i].samples, Array.Empty<HitSampleInfo>() }
+                        Samples = locations[i].samples,
+
                     });
                 }
 
